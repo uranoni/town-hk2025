@@ -350,8 +350,8 @@ app.post('/api/routes/safe-route', async (req, res) => {
 
     // 使用 RouteGenerator 生成路徑
     const routeGenerator = new RouteGenerator({
-      mapboxToken: process.env.MAPBOX_TOKEN,
-      hereApiKey: process.env.HERE_API_KEY
+      mapboxToken: process.env.MAPBOXAPIKEY,
+      hereApiKey: process.env.HEREAPIKEY
     });
 
     const routeResult = await routeGenerator.calculateRoute({
