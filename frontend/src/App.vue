@@ -1,184 +1,441 @@
-<script setup>
-import RouteMap from './components/RouteMap.vue'
-import { ref } from 'vue'
-
-// Mapbox Access Token - 請設置環境變數或直接替換
-const accessToken = ref(import.meta.env.VITE_MAPBOX_TOKEN || 'YOUR_MAPBOX_TOKEN_HERE')
-
-// HERE API Key - 用於魔法避障功能
-const hereApiKey = ref(import.meta.env.VITE_HERE_API_KEY || '')
-
-// Good Points（優先經過的點）
-const goodPoints = ref([
-  [121.5437, 25.0375], // 台北車站
-  [121.5200, 25.0408], // 西門町
-])
-
-// Bad Points（必須避開的點）
-const badPoints = ref([
-  [121.5310, 25.0454], // 中山區某處
-])
-
-// 新增點位的輸入
-const newPointLng = ref('')
-const newPointLat = ref('')
-
-// 添加 Good Point
-const addGoodPoint = () => {
-  const lng = parseFloat(newPointLng.value)
-  const lat = parseFloat(newPointLat.value)
-
-  if (lng && lat) {
-    goodPoints.value.push([lng, lat])
-    newPointLng.value = ''
-    newPointLat.value = ''
-  }
-}
-
-// 添加 Bad Point
-const addBadPoint = () => {
-  const lng = parseFloat(newPointLng.value)
-  const lat = parseFloat(newPointLat.value)
-
-  if (lng && lat) {
-    badPoints.value.push([lng, lat])
-    newPointLng.value = ''
-    newPointLat.value = ''
-  }
-}
-
-// 刪除點位
-const removeGoodPoint = (index) => {
-  goodPoints.value.splice(index, 1)
-}
-
-const removeBadPoint = (index) => {
-  badPoints.value.splice(index, 1)
-}
-
-// 從地圖點擊添加點位
-const handleAddGoodPointFromMap = (point) => {
-  goodPoints.value.push(point)
-}
-
-const handleAddBadPointFromMap = (point) => {
-  badPoints.value.push(point)
-}
-</script>
-
 <template>
-  <div class="app-container">
-    <header class="app-header">
-      <h1>🚶 行人智能路徑規劃系統</h1>
-      <p class="subtitle">支援動態 Good/Bad Points，行人路徑自動調整</p>
-    </header>
+  <div class="container mx-auto px-2 h-full">
+    <GoogleMap ref="locationMap" :api-key="ApiKey" :map-id="MapId" style="width: 100%; height: 100%" :center="center"
+      :zoom="15" gesture-handling="greedy" :disable-default-ui="true" :libraries="['visualization', 'marker']"
+      @center_changed="mapCenterChanged">
+      <AdvancedMarker :options="markerOptions">
+      </AdvancedMarker>
+      <!-- <Polyline v-if="pathCoordinates.length > 1" :options="{
+        path: pathCoordinates,
+        strokeColor: '#FF0000',
+        strokeOpacity: 1.0,
+        strokeWeight: 3
+      }" /> -->
+      <!-- 路燈網格熱圖層 -->
+      <!-- <Rectangle v-for="cell in heatmapData" v-show="isHeatmapVisible" :key="cell.gridKey" :options="{
+        bounds: cell.bounds,
+        fillColor: cell.color,
+        strokeColor: parseColorValue(cell.color),
+        strokeOpacity: 0.3,
+        strokeWeight: 1,
+        clickable: true
+      }" @click="showGridInfo(cell)" /> -->
+      <!-- 報告標記由 JavaScript 直接管理 -->
+    </GoogleMap>
 
-    <div v-if="accessToken === 'YOUR_MAPBOX_TOKEN_HERE'" class="warning-banner">
-      <h3>⚠️ 需要設置 Mapbox Token</h3>
-      <p>請設置環境變數 <code>VITE_MAPBOX_TOKEN</code> 或在 App.vue 中直接設置 accessToken</p>
-      <p>獲取 Token: <a href="https://account.mapbox.com/" target="_blank">https://account.mapbox.com/</a></p>
-    </div>
+    <!-- 路燈熱圖控制 -->
+    <!-- <StreetlightHeatmap ref="heatmapRef" @toggle="isHeatmapVisible = $event" /> -->
 
-    <div class="info-section">
-      <div class="info-card">
-        <h3>📍 標記說明</h3>
-        <ul>
-          <li><span class="marker green">●</span> 起點</li>
-          <li><span class="marker red">●</span> 終點</li>
-          <li><span class="marker blue">●</span> Good Points（優先經過）</li>
-          <li><span class="marker orange">●</span> Bad Points（必須避開）</li>
-          <li><span class="marker purple">●</span> 繞行點（擴展的避障點）</li>
-        </ul>
-      </div>
-
-      <div class="info-card">
-        <h3>✨ 主要功能</h3>
-        <ul>
-          <li>🚶 行人專用路徑規劃</li>
-          <li>✅ 動態經過 Good Points（不超時）</li>
-          <li>✅ HERE API 智能避開 Bad Points</li>
-          <li>✅ <strong>自動重新計算路徑</strong></li>
-        </ul>
-      </div>
-
-      <div class="info-card">
-        <h3>🖱️ 地圖操作</h3>
-        <ul>
-          <li>🎯 <strong>左鍵點擊</strong> → 新增 Good Point</li>
-          <li>⚠️ <strong>右鍵點擊</strong> → 新增 Bad Point</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="points-manager">
-      <div class="manager-section">
-        <h3>🎯 管理 Good Points（優先經過）</h3>
-        <div class="point-list">
-          <div v-for="(point, index) in goodPoints" :key="index" class="point-item good">
-            <span>{{ index + 1 }}. [{{ point[0].toFixed(4) }}, {{ point[1].toFixed(4) }}]</span>
-            <button @click="removeGoodPoint(index)" class="btn-remove">刪除</button>
-          </div>
-          <p v-if="goodPoints.length === 0" class="empty-message">尚未添加 Good Points</p>
-        </div>
-        <div class="add-point">
-          <input v-model="newPointLng" type="number" step="0.0001" placeholder="經度" />
-          <input v-model="newPointLat" type="number" step="0.0001" placeholder="緯度" />
-          <button @click="addGoodPoint" class="btn-add">+ 添加 Good Point</button>
-        </div>
-      </div>
-
-      <div class="manager-section">
-        <h3>⚠️ 管理 Bad Points（必須避開）</h3>
-        <div class="point-list">
-          <div v-for="(point, index) in badPoints" :key="index" class="point-item bad">
-            <span>{{ index + 1 }}. [{{ point[0].toFixed(4) }}, {{ point[1].toFixed(4) }}]</span>
-            <button @click="removeBadPoint(index)" class="btn-remove">刪除</button>
-          </div>
-          <p v-if="badPoints.length === 0" class="empty-message">尚未添加 Bad Points</p>
-        </div>
-        <div class="add-point">
-          <input v-model="newPointLng" type="number" step="0.0001" placeholder="經度" />
-          <input v-model="newPointLat" type="number" step="0.0001" placeholder="緯度" />
-          <button @click="addBadPoint" class="btn-add-bad">+ 添加 Bad Point</button>
-        </div>
-      </div>
-    </div>
-
-    <RouteMap
-      :access-token="accessToken"
-      :here-api-key="hereApiKey"
-      :good-points="goodPoints"
-      :bad-points="badPoints"
-      :max-time-increase="1.3"
-      :bad-point-radius="200"
-      @add-good-point="handleAddGoodPointFromMap"
-      @add-bad-point="handleAddBadPointFromMap"
-    />
-
-    <div class="feature-note">
-      <h4>🔄 動態行人路徑調整與魔法避障</h4>
-      <p>
-        當您添加或刪除 Good/Bad Points 時，<strong>行人路徑</strong>會自動重新計算。
-        系統會嘗試在不增加太多時間的前提下經過 Good Points，同時智能避開 Bad Points。
-      </p>
-      <p style="margin-top: 10px;">
-        <strong>✨ HERE API 魔法避障（行人模式）：</strong>系統使用 HERE Routing API 的原生 <code>avoidAreas</code> 功能，
-        在每個 Bad Point 周圍創建一個長方形避障區域 (bbox)，行人路徑會自動繞過這些區域，無需手動添加繞行點！
-      </p>
-      <p style="margin-top: 10px;">
-        <strong>🚶 行人專屬：</strong>路徑計算使用 <code>pedestrian/walking</code> 模式，
-        會優先選擇人行道、步行街等適合行人的道路。
-      </p>
-      <p style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 6px;">
-        <strong>⚙️ 設置提示：</strong>請在 <code>.env</code> 文件中添加 <code>VITE_HERE_API_KEY</code>，
-        或直接在 App.vue 中設置 hereApiKey 變量。獲取免費 API Key：
-        <a href="https://developer.here.com/" target="_blank">https://developer.here.com/</a>
-      </p>
-    </div>
+    <!-- 浮動按鈕和回報表單 -->
+    <FloatingButton @click="openReportSheet" />
+    <ReportSheet :is-open="isReportSheetOpen" :latitude="center.lat" :longitude="center.lng" @close="closeReportSheet"
+      @submit="handleReportSubmit" />
   </div>
 </template>
 
+<script setup>
+import { ref, defineModel, watchEffect, watch, reactive, onMounted, onUnmounted, computed } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
+import { GoogleMap, Polyline, Rectangle, AdvancedMarker } from 'vue3-google-map';
+
+import FloatingButton from './components/FloatingButton.vue';
+import ReportSheet from './components/ReportSheet.vue';
+import StreetlightHeatmap from './components/StreetlightHeatmap.vue';
+import { useConnectionMessage } from './composables/useConnectionMessage';
+import { useHandleConnectionData } from './composables/useHandleConnectionData';
+
+const ApiKey = import.meta.env.VITE_GOOGLE_API_KEY
+const MapId = import.meta.env.VITE_GOOGLE_MAP_ID
+
+
+const center = reactive({ lat: 25.0376146, lng: 121.563844 });
+const markerOptions = ref({ position: { lat: 25.0376146, lng: 121.563844 } })
+const locationMap = ref(null);
+const heatmapRef = ref(null);
+const isPanning = ref(false);
+const pathCoordinates = ref([]); // 儲存路徑座標
+const gpsRecords = ref([]); // 儲存所有 GPS 紀錄
+let gpsInterval = null; // 定時器
+let simulationInterval = null; // 模擬定時器
+const isSimulating = ref(false);
+let simulationLat = 25.0376146; // 模擬起始緯度
+let simulationLng = 121.563844; // 模擬起始經度
+const isReportSheetOpen = ref(false); // 回報 Sheet 開啟狀態
+const reports = ref([]); // 儲存所有回報
+const reportMarkers = ref([]); // 儲存標記引用
+const isHeatmapVisible = ref(false); // 熱圖顯示狀態
+const heatmapData = ref([]); // 熱圖數據
+
+// 計算最近 10 筆紀錄
+const recentGpsRecords = computed(() => {
+  return gpsRecords.value.slice(-10).reverse();
+});
+
+// 載入路燈熱圖數據
+const loadHeatmapData = async () => {
+  try {
+    const { createGridHeatmap } = await import('./utils/gridHeatmap');
+    heatmapData.value = createGridHeatmap(100); // 使用 50 米網格
+    console.log('Grid heatmap data loaded:', heatmapData.value.length, 'grid cells');
+  } catch (error) {
+    console.error('Error loading heatmap data:', error);
+  }
+};
+
+
+const handleLocation = async (event) => {
+  console.log('handleLocation')
+  const result = JSON.parse(
+    event.data
+  );
+
+  console.log('handleLocation', result)
+
+  if (result.data.longitude && result.data.latitude) {
+    const lat = result.data.latitude;
+    const lng = result.data.longitude;
+
+    // 設置 isPanning 避免觸發 mapCenterChanged
+    isPanning.value = true;
+
+    // 更新地圖中心點
+    center.lat = lat;
+    center.lng = lng;
+
+    // 手動移動地圖到新位置
+    if (locationMap.value && locationMap.value.map) {
+      locationMap.value.map.panTo({ lat, lng });
+    }
+
+    // 添加到路徑座標陣列
+    pathCoordinates.value.push({ lat, lng });
+
+    // 添加到 GPS 紀錄
+    const now = new Date();
+    const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+    gpsRecords.value.push({
+      index: gpsRecords.value.length + 1,
+      lat: lat.toFixed(7),
+      lng: lng.toFixed(7),
+      time: timeString
+    });
+
+    const position = {
+      lat,
+      lng
+    }
+    markerOptions.value = { position }
+
+    console.log('已添加路徑點:', { lat, lng, pathLength: pathCoordinates.value.length });
+  }
+};
+
+// 每 10 秒請求 GPS 位置
+onMounted(async () => {
+  // 載入熱圖數據
+  await loadHeatmapData();
+
+  // 立即請求一次
+  useConnectionMessage('location', null);
+
+  // 設置定時器每 10 秒請求一次
+  gpsInterval = setInterval(() => {
+    console.log('定時請求 GPS 位置...');
+    useConnectionMessage('location', null);
+  }, 10000); // 10000 毫秒 = 10 秒
+});
+
+// 清理定時器
+onUnmounted(() => {
+  if (gpsInterval) {
+    clearInterval(gpsInterval);
+    gpsInterval = null;
+  }
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+});
+
+// 模擬 GPS 位置移動（向東）
+const addSimulatedPoint = () => {
+  // 向東移動：經度增加約 0.0001 度（約 10 公尺）
+  simulationLng += 0.0001;
+  // 稍微變化緯度，讓路徑不是完全直線
+  simulationLat += (Math.random() - 0.5) * 0.00002;
+
+  const lat = simulationLat;
+  const lng = simulationLng;
+
+  // 設置 isPanning 避免觸發 mapCenterChanged
+  isPanning.value = true;
+
+  // 更新地圖中心點
+  center.lat = lat;
+  center.lng = lng;
+
+  // 手動移動地圖到新位置
+  if (locationMap.value && locationMap.value.map) {
+    locationMap.value.map.panTo({ lat, lng });
+  }
+
+  // 添加到路徑座標陣列
+  pathCoordinates.value.push({ lat, lng });
+
+  // 添加到 GPS 紀錄
+  const now = new Date();
+  const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+  gpsRecords.value.push({
+    index: gpsRecords.value.length + 1,
+    lat: lat.toFixed(7),
+    lng: lng.toFixed(7),
+    time: timeString
+  });
+
+  console.log('模擬路徑點:', { lat, lng, pathLength: pathCoordinates.value.length });
+};
+
+// 開始模擬
+const startSimulation = () => {
+  if (isSimulating.value) return;
+
+  isSimulating.value = true;
+
+  // 如果沒有路徑，從初始位置開始
+  if (pathCoordinates.value.length === 0) {
+    simulationLat = 25.0376146;
+    simulationLng = 121.563844;
+  } else {
+    // 從最後一個點繼續
+    const lastPoint = pathCoordinates.value[pathCoordinates.value.length - 1];
+    simulationLat = lastPoint.lat;
+    simulationLng = lastPoint.lng;
+  }
+
+  // 立即添加第一個點
+  addSimulatedPoint();
+
+  // 每 2 秒添加一個新點
+  simulationInterval = setInterval(() => {
+    addSimulatedPoint();
+  }, 2000);
+
+  console.log('開始向東模擬移動');
+};
+
+// 停止模擬
+const stopSimulation = () => {
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+  isSimulating.value = false;
+  console.log('停止模擬');
+};
+
+// 清除路徑
+const clearPath = () => {
+  pathCoordinates.value = [];
+  gpsRecords.value = [];
+  simulationLat = 25.0376146;
+  simulationLng = 121.563844;
+  center.lat = 25.0376146;
+  center.lng = 121.563844;
+  console.log('已清除所有路徑');
+};
+
+// 開啟回報表單
+const openReportSheet = () => {
+  isReportSheetOpen.value = true;
+};
+
+// 關閉回報表單
+const closeReportSheet = () => {
+  isReportSheetOpen.value = false;
+};
+
+// 直接在地圖上創建標記
+const createMapMarker = (report) => {
+  if (!locationMap.value?.map || !window.google) {
+    console.warn('Map not ready for marker creation');
+    return null;
+  }
+
+  try {
+    const map = locationMap.value.map;
+
+    // 信息窗口內容
+    const infoContent = `
+      <div style="padding: 12px; font-size: 13px; min-width: 200px; font-family: system-ui, -apple-system, sans-serif;">
+        <strong style="color: #FF0000; font-size: 14px;">狀況：${getStatusLabel(report.status)}</strong><br>
+        <strong>位置：</strong> ${report.latitude.toFixed(7)}, ${report.longitude.toFixed(7)}<br>
+        <strong>時間：</strong> ${new Date(report.timestamp).toLocaleString('zh-TW')}<br>
+        ${report.notes ? `<strong>備註：</strong> ${report.notes}` : ''}
+      </div>
+    `;
+
+    const infowindow = new google.maps.InfoWindow({
+      content: infoContent
+    });
+
+    // 建立標記
+    const marker = new google.maps.Marker({
+      position: {
+        lat: parseFloat(report.latitude),
+        lng: parseFloat(report.longitude)
+      },
+      map: map,
+      title: `${getStatusLabel(report.status)} - ${new Date(report.timestamp).toLocaleTimeString('zh-TW')}`,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 12,
+        fillColor: '#FF0000',
+        fillOpacity: 0.8,
+        strokeColor: '#FFFFFF',
+        strokeWeight: 2
+      },
+      clickable: true
+    });
+
+    // 點擊標記顯示信息窗口
+    marker.addListener('click', () => {
+      // 關閉其他打開的窗口
+      reportMarkers.value.forEach((markerInfo) => {
+        if (markerInfo && markerInfo.infowindow && markerInfo.infowindow !== infowindow) {
+          markerInfo.infowindow.close();
+        }
+      });
+      // 打開當前窗口
+      infowindow.open(map, marker);
+    });
+
+    console.log('Marker created at', report.latitude, report.longitude);
+    return { marker, infowindow };
+  } catch (error) {
+    console.error('Error creating marker:', error);
+    return null;
+  }
+};
+
+// 處理回報提交
+const handleReportSubmit = (report) => {
+  console.log('收到回報：', report);
+
+  // 保存報告到前端存儲
+  const reportWithId = {
+    id: Date.now(),
+    ...report,
+    position: {
+      lat: report.latitude,
+      lng: report.longitude
+    }
+  };
+  reports.value.push(reportWithId);
+
+  // 直接在地圖上創建標記
+  const markerData = createMapMarker(reportWithId);
+  if (markerData) {
+    reportMarkers.value.push(markerData);
+  }
+
+  // 顯示確認訊息
+  alert(`已回報狀況：${getStatusLabel(report.status)}\n位置：${report.latitude.toFixed(7)}, ${report.longitude.toFixed(7)}`);
+};
+
+// 獲取狀況標籤文字
+const getStatusLabel = (status) => {
+  const statusMap = {
+    normal: '正常',
+    crowded: '擁擠',
+    accident: '意外',
+    blocked: '受阻',
+    emergency: '緊急情況',
+    other: '其他'
+  };
+  return statusMap[status] || status;
+};
+
+// 從顏色字符串提取 RGB 值用於邊框
+const parseColorValue = (colorStr) => {
+  // 從 rgba 或 rgb 字符串中提取 RGB 值
+  if (colorStr.includes('rgba')) {
+    return colorStr.replace(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)/, 'rgb($1, $2, $3)');
+  }
+  return colorStr;
+};
+
+// 顯示網格信息
+const showGridInfo = (cell) => {
+  if (!window.google) return;
+
+  const map = locationMap.value?.map;
+  if (!map) return;
+
+  const wattLabel = cell.totalWatt <= 5 ? '紅(1-5W)' : cell.totalWatt <= 10 ? '黃(6-10W)' : '綠(11+W)';
+
+  const infoContent = `
+    <div style="padding: 12px; font-size: 13px; font-family: system-ui, -apple-system, sans-serif;">
+      <strong style="color: #333; font-size: 14px;">網格信息</strong><br>
+      <strong>顏色等級：</strong> ${wattLabel}<br>
+      <strong>總功率：</strong> ${cell.totalWatt} W<br>
+      <strong>路燈數：</strong> ${cell.count}<br>
+      <strong>平均功率：</strong> ${cell.avgWatt.toFixed(2)} W<br>
+      <strong>網格ID：</strong> ${cell.gridKey}
+    </div>
+  `;
+
+  const infowindow = new google.maps.InfoWindow({
+    content: infoContent,
+    position: {
+      lat: (cell.bounds.north + cell.bounds.south) / 2,
+      lng: (cell.bounds.east + cell.bounds.west) / 2
+    }
+  });
+
+  infowindow.open(map);
+};
+
+
+const mapCenterChanged = useDebounceFn(async () => {
+  console.log('mapCenterChanged...')
+  if (locationMap.value) {
+    if (isPanning.value) {
+      isPanning.value = false;
+      return;
+    }
+
+    const gmap = locationMap.value.map;
+    const newCenter = gmap.getCenter();
+    const lat = parseFloat(newCenter.lat().toFixed(7));
+    const lng = parseFloat(newCenter.lng().toFixed(7));
+
+    // const { data } = await axios.get(
+    //   `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=`
+    // );
+
+    center.lat = lat;
+    center.lng = lng;
+
+    // markerOptions.value = position
+
+    // if (data.results.length) {
+    //   center.lat = lat;
+    //   center.lng = lng;
+    //   addressText.value = data.results[0]?.formatted_address;
+    // } else {
+    //   isNoResultModalShow.value = true;
+    // }
+  }
+}, 1000);
+
+
+
+useConnectionMessage('location', null);
+useHandleConnectionData(handleLocation);
+</script>
+
 <style scoped>
+<<<<<<< HEAD
 .app-container {
   max-width: 1600px;
   margin: 0 auto;
@@ -406,5 +663,135 @@ const handleAddBadPointFromMap = (point) => {
   margin-bottom: 0;
   color: #2c3e50;
   line-height: 1.6;
+=======
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  width: 500px;
+}
+
+.sim-button {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex: 1;
+>>>>>>> origin/feature/front
+}
+
+.sim-button:not(:disabled) {
+  background: #FF0000;
+  color: white;
+}
+
+.sim-button:not(:disabled):hover {
+  background: #cc0000;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(255, 0, 0, 0.3);
+}
+
+.sim-button:disabled {
+  background: #ccc;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.sim-button.stop:not(:disabled) {
+  background: #ff9800;
+}
+
+.sim-button.stop:not(:disabled):hover {
+  background: #e68900;
+  box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
+}
+
+.sim-button.clear:not(:disabled) {
+  background: #555;
+}
+
+.sim-button.clear:not(:disabled):hover {
+  background: #333;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.debug-info {
+  width: 500px;
+  background: #e3f2fd;
+  padding: 10px 15px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1976d2;
+}
+
+.debug-info p {
+  margin: 5px 0;
+}
+
+.gps-records {
+  width: 500px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.gps-records h3 {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  color: #333;
+  border-bottom: 2px solid #FF0000;
+  padding-bottom: 8px;
+}
+
+.no-records {
+  text-align: center;
+  color: #999;
+  padding: 20px;
+  font-size: 14px;
+}
+
+.records-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.record-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border-left: 3px solid #FF0000;
+  font-size: 14px;
+}
+
+.record-index {
+  font-weight: bold;
+  color: #FF0000;
+  min-width: 40px;
+}
+
+.record-coords {
+  flex: 1;
+  color: #555;
+  font-family: monospace;
+}
+
+.record-time {
+  color: #888;
+  font-size: 13px;
+  min-width: 70px;
+  text-align: right;
 }
 </style>

@@ -1,79 +1,99 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@import "tailwindcss";
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+@theme {
+  /* 字體家族 */
+  --font-sans: 'PingFang TC', 'Roboto', ui-sans-serif, system-ui, sans-serif, 
+               'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  /* 自訂字體大小 */
+  --font-size-h1: 1.75rem;
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
+  /* 自訂陰影 */
+  --shadow-card: 0px 4px 12px 0px rgba(0, 0, 0, 0.1);
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
+  /* Primary 色系 */
+  --color-primary-50: #edf8fa;
+  --color-primary-100: #dbf1f5;
+  --color-primary-200: #b4e2ea;
+  --color-primary-300: #93d4df;
+  --color-primary-400: #71c5d5;
+  --color-primary-500: #2eb6c7;
+  --color-primary-600: #468d9b;
+  --color-primary-700: #356c77;
+  --color-primary-800: #22474e;
+  --color-primary-900: #112629;
+  --color-primary-950: #081315;
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
+  /* Secondary 色系 */
+  --color-secondary-50: #fdf8ed;
+  --color-secondary-100: #fcf2df;
+  --color-secondary-200: #f8e3bc;
+  --color-secondary-300: #f4d69e;
+  --color-secondary-400: #edbb60;
+  --color-secondary-500: #f5ba4b;
+  --color-secondary-600: #e7a43c;
+  --color-secondary-700: #b07d2c;
+  --color-secondary-800: #74521b;
+  --color-secondary-900: #3c2b0b;
+  --color-secondary-950: #1c1304;
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
+  /* Grey 色系 */
+  --color-grey-50: #f1f3f4;
+  --color-grey-100: #e3e7e9;
+  --color-grey-200: #cad1d5;
+  --color-grey-300: #adb8be;
+  --color-grey-400: #91a0a8;
+  --color-grey-500: #738995;
+  --color-grey-600: #5e6d76;
+  --color-grey-700: #475259;
+  --color-grey-800: #30383d;
+  --color-grey-900: #171b1d;
+  --color-grey-950: #080d0e;
 
-.card {
-  padding: 2em;
+  /* Main 色系 */
+  --color-main-50: #eef7f9;
+  --color-main-100: #def0f3;
+  --color-main-200: #bde1e7;
+  --color-main-300: #8ccad6;
+  --color-main-400: #5ab3c4;
+  --color-main-500: #51a1b0;
+  --color-main-600: #488f9d;
+  --color-main-700: #366b76;
+  --color-main-800: #2d5a62;
+  --color-main-900: #24484e;
+
+  /* Mid 色系 */
+  --color-mid-50: #ffffff;
+  --color-mid-100: #f5f5f5;
+  --color-mid-200: #f0f0f0;
+  --color-mid-300: #dddddd;
+  --color-mid-400: #959595;
+  --color-mid-500: #434343;
+
+  /* Orange 色系 */
+  --color-orange-50: #FDF3EC;
+  --color-orange-100: #FBE7D9;
+  --color-orange-200: #F7CFB2;
+  --color-orange-300: #F4B992;
+  --color-orange-400: #F1A26D;
+  --color-orange-500: #FD853A;
+  --color-orange-600: #E6692C;
+  --color-orange-700: #AE501F;
+  --color-orange-800: #713311;
+  --color-orange-900: #391A06;
+  --color-orange-950: #1C0C02;
+
+  /* Warn 色系 */
+  --color-warn-100: #ea686f;
+  --color-warn-200: #e5464b;
+
+  /* 單一顏色 */
+  --color-mango: #eac600;
+  --color-banana: #f5ba4b;
+  --color-grape: #5e73b4;
+  --color-success: #6a0;
 }
 
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+  height: 100vh;
 }
