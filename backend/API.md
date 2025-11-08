@@ -324,6 +324,204 @@ curl -X DELETE http://localhost/api/map-points/4
 
 ---
 
+## 安全路徑生成 API
+
+### 生成安全路徑
+**POST /routes/safe-route**
+
+根據起點和終點座標，搜尋矩形範圍內的安全點和不安全點，生成安全路徑建議。
+
+**請求 Body:**
+```json
+{
+  "start": {
+    "latitude": 25.033,
+    "longitude": 121.565
+  },
+  "end": {
+    "latitude": 25.047,
+    "longitude": 121.517
+  },
+  "options": {
+    "avoidanceRadius": 100,
+    "preferSafePoints": true
+  }
+}
+```
+
+**必填欄位:**
+- `start`: 起點座標
+  - `latitude`: 起點緯度
+  - `longitude`: 起點經度
+- `end`: 終點座標
+  - `latitude`: 終點緯度
+  - `longitude`: 終點經度
+
+**選填欄位 (options):**
+- `avoidanceRadius`: 迴避不安全點的距離（公尺），預設 100
+- `preferSafePoints`: 是否優先經過安全點，預設 true
+
+**範例:**
+```bash
+curl -X POST http://localhost/api/routes/safe-route \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start": {
+      "latitude": 25.033,
+      "longitude": 121.565
+    },
+    "end": {
+      "latitude": 25.047,
+      "longitude": 121.517
+    },
+    "options": {
+      "avoidanceRadius": 100,
+      "preferSafePoints": true
+    }
+  }'
+```
+
+**回應範例:**
+```json
+{
+  "success": true,
+  "route": {
+    "start": {
+      "latitude": 25.033,
+      "longitude": 121.565
+    },
+    "end": {
+      "latitude": 25.047,
+      "longitude": 121.517
+    },
+    "directDistance": 4532.18,
+    "totalDistance": 4650.32,
+    "detourDistance": 118.14,
+    "waypoints": [
+      {
+        "latitude": 25.033,
+        "longitude": 121.565,
+        "type": "start",
+        "name": "起點"
+      },
+      {
+        "latitude": 25.04,
+        "longitude": 121.54,
+        "type": "safe_point",
+        "name": "安全休息點",
+        "description": "24小時便利商店"
+      },
+      {
+        "latitude": 25.047,
+        "longitude": 121.517,
+        "type": "end",
+        "name": "終點"
+      }
+    ],
+    "safetyLevel": "safe",
+    "statistics": {
+      "totalSafePoints": 5,
+      "totalUnsafePoints": 2,
+      "threatsOnRoute": 0,
+      "safepointsOnRoute": 1
+    },
+    "warnings": [
+      "路徑上沒有發現障礙物或不安全點"
+    ],
+    "recommendations": [
+      "此路徑相對安全，可以放心前往",
+      "路徑上有 1 個安全點可以作為休息或避難處"
+    ]
+  },
+  "searchArea": {
+    "bounds": {
+      "north": 25.052,
+      "south": 25.028,
+      "east": 121.57,
+      "west": 121.512
+    },
+    "pointsFound": {
+      "safe": 5,
+      "unsafe": 2,
+      "total": 7
+    }
+  }
+}
+```
+
+**回應欄位說明:**
+
+**route 物件:**
+- `start` / `end`: 起點和終點座標
+- `directDistance`: 直線距離（公尺）
+- `totalDistance`: 路徑總距離（公尺）
+- `detourDistance`: 繞行距離（公尺）
+- `waypoints`: 路徑點陣列
+  - `type`: 點類型（start, end, safe_point）
+  - `name`: 點名稱
+  - `description`: 點描述
+- `safetyLevel`: 安全等級
+  - `safe`: 安全
+  - `caution`: 謹慎
+  - `warning`: 警告
+  - `danger`: 危險
+- `statistics`: 統計資訊
+  - `totalSafePoints`: 範圍內安全點總數
+  - `totalUnsafePoints`: 範圍內不安全點總數
+  - `threatsOnRoute`: 路徑上的威脅數量
+  - `safepointsOnRoute`: 路徑上的安全點數量
+- `warnings`: 警告訊息陣列
+- `recommendations`: 建議訊息陣列
+
+**searchArea 物件:**
+- `bounds`: 搜尋範圍的邊界
+- `pointsFound`: 找到的點數量統計
+
+**使用情境:**
+
+1. **基本路徑規劃**
+```bash
+curl -X POST http://localhost/api/routes/safe-route \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start": {"latitude": 25.033, "longitude": 121.565},
+    "end": {"latitude": 25.047, "longitude": 121.517}
+  }'
+```
+
+2. **增加迴避距離**
+```bash
+curl -X POST http://localhost/api/routes/safe-route \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start": {"latitude": 25.033, "longitude": 121.565},
+    "end": {"latitude": 25.047, "longitude": 121.517},
+    "options": {"avoidanceRadius": 200}
+  }'
+```
+
+3. **不優先經過安全點（最短路徑）**
+```bash
+curl -X POST http://localhost/api/routes/safe-route \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start": {"latitude": 25.033, "longitude": 121.565},
+    "end": {"latitude": 25.047, "longitude": 121.517},
+    "options": {"preferSafePoints": false}
+  }'
+```
+
+**特性:**
+- 自動計算起點和終點組成的矩形範圍
+- 搜尋範圍自動擴大 500 公尺緩衝區
+- 分析路徑上的威脅點（不安全點和障礙物）
+- 尋找路徑附近的安全點作為途經點
+- 計算直線距離和實際路徑距離
+- 提供安全等級評估
+- 給出警告和建議
+
+---
+
 ## 障礙物回報 API
 
 ### 回報路障或維修設施
