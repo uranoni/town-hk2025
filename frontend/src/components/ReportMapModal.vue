@@ -11,11 +11,14 @@
           <!-- 地圖容器 -->
           <div class="map-wrapper">
             <GoogleMap ref="reportMap" :api-key="ApiKey" :map-id="MapId" style="width: 100%; height: 100%"
-              :center="mapCenter" :zoom="15" gesture-handling="greedy" :disable-default-ui="false"
-              @center_changed="handleMapCenterChanged" @click="handleMapClick">
-              <!-- 中心標記（可拖動） -->
-              <div class="map-center-marker" />
-            </GoogleMap>
+              :center="mapCenter" :zoom="16" gesture-handling="greedy" :disable-default-ui="true"
+              @dragend="handleMapDragEnd" @center_changed="handleCenterChanged" />
+
+            <!-- 固定在畫面中央的 Marker（純 CSS，不會移動） -->
+            <div class="center-marker">
+              <div class="marker-pin"></div>
+              <div class="marker-shadow"></div>
+            </div>
           </div>
 
           <!-- 座標顯示和確認區域 -->
@@ -30,14 +33,14 @@
             </div>
             <div class="info-row">
               <span class="label">提示：</span>
-              <span class="value hint">拖動地圖或點擊地圖選擇位置</span>
+              <span class="value hint">拖動地圖來選擇位置</span>
             </div>
           </div>
 
           <!-- 操作按鈕 -->
           <div class="button-group">
             <button class="btn btn-cancel" @click="closeModal">取消</button>
-            <button class="btn btn-confirm" @click="confirmLocation">確認位置</button>
+            <button class="btn bg-primary-500 text-white" @click="confirmLocation">確認位置</button>
           </div>
         </div>
       </div>
@@ -46,13 +49,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { GoogleMap } from 'vue3-google-map';
 
-
-const ApiKey = import.meta.env.VITE_GOOGLE_API_KEY
-const MapId = import.meta.env.VITE_GOOGLE_MAP_ID
-
+const ApiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+const MapId = import.meta.env.VITE_GOOGLE_MAP_ID;
 
 const props = defineProps({
   isOpen: {
@@ -82,9 +83,6 @@ const selectedLocation = reactive({
   lng: props.initialLng
 });
 
-let dragMarker = null;
-let isMapReady = false;
-
 // 監聽 props 變化
 watch(() => props.initialLat, (newVal) => {
   selectedLocation.lat = newVal;
@@ -96,74 +94,24 @@ watch(() => props.initialLng, (newVal) => {
   mapCenter.lng = newVal;
 });
 
-// 初始化可拖動標記
-const initDragMarker = () => {
-  if (!reportMap.value?.map || !window.google) return;
-
-  const map = reportMap.value.map;
-
-  // 創建可拖動的標記
-  dragMarker = new google.maps.Marker({
-    position: {
-      lat: selectedLocation.lat,
-      lng: selectedLocation.lng
-    },
-    map: map,
-    draggable: true,
-    title: '拖動以選擇位置',
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 14,
-      fillColor: '#FF6B6B',
-      fillOpacity: 0.9,
-      strokeColor: '#FFFFFF',
-      strokeWeight: 3
-    }
-  });
-
-  // 監聽標記拖動事件
-  dragMarker.addListener('drag', () => {
-    const pos = dragMarker.getPosition();
-    selectedLocation.lat = pos.lat();
-    selectedLocation.lng = pos.lng();
-  });
-
-  // 標記拖動結束
-  dragMarker.addListener('dragend', () => {
-    const pos = dragMarker.getPosition();
-    selectedLocation.lat = pos.lat();
-    selectedLocation.lng = pos.lng();
-    mapCenter.lat = pos.lat();
-    mapCenter.lng = pos.lng();
-  });
+// 當地圖拖動結束時更新選中位置
+const handleMapDragEnd = () => {
+  updateSelectedLocation();
 };
 
-// 處理地圖點擊
-const handleMapClick = (event) => {
-  if (event.latLng) {
-    const lat = event.latLng.lat();
-    const lng = event.latLng.lng();
-
-    selectedLocation.lat = lat;
-    selectedLocation.lng = lng;
-    mapCenter.lat = lat;
-    mapCenter.lng = lng;
-
-    // 更新標記位置
-    if (dragMarker) {
-      dragMarker.setPosition({ lat, lng });
-    }
-  }
+// 當地圖中心改變時更新選中位置（用於點擊地圖等其他操作）
+const handleCenterChanged = () => {
+  updateSelectedLocation();
 };
 
-// 監聽地圖中心變化
-const handleMapCenterChanged = () => {
-  if (!isMapReady && reportMap.value?.map) {
-    isMapReady = true;
-    // 延遲初始化，確保地圖已準備好
-    setTimeout(() => {
-      initDragMarker();
-    }, 100);
+// 更新選中位置為當前地圖中心
+const updateSelectedLocation = () => {
+  if (!reportMap.value?.map) return;
+
+  const center = reportMap.value.map.getCenter();
+  if (center) {
+    selectedLocation.lat = center.lat();
+    selectedLocation.lng = center.lng();
   }
 };
 
@@ -180,16 +128,6 @@ const confirmLocation = () => {
   });
   closeModal();
 };
-
-// 組件卸載時清理
-onMounted(() => {
-  // 延遲初始化確保地圖組件完全加載
-  setTimeout(() => {
-    if (reportMap.value?.map && !dragMarker) {
-      initDragMarker();
-    }
-  }, 500);
-});
 </script>
 
 <style scoped>
@@ -267,18 +205,62 @@ onMounted(() => {
   flex: 1;
   position: relative;
   overflow: hidden;
-  border-radius: 0;
 }
 
-.map-center-marker {
+/* 固定在畫面中央的 Marker */
+.center-marker {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 30px;
-  height: 30px;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -100%);
   pointer-events: none;
-  z-index: 5;
+  z-index: 10;
+}
+
+.marker-pin {
+  width: 0;
+  height: 0;
+  border-left: 15px solid transparent;
+  border-right: 15px solid transparent;
+  border-top: 40px solid #FF0000;
+  position: relative;
+  transform: translateX(-50%);
+}
+
+.marker-pin::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  top: -35px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.marker-pin::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #FF0000;
+  border-radius: 50%;
+  top: -31px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.marker-shadow {
+  width: 30px;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  filter: blur(2px);
 }
 
 .location-info {
