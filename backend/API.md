@@ -116,16 +116,16 @@ curl http://localhost/api/map-points/1
 - `lng`: 經度
 
 **查詢參數:**
-- `radius` (number, optional): 搜尋半徑（公里），預設 5 公里
+- `radius` (number, optional): 搜尋半徑（公尺），預設 500 公尺
 - `is_safe` (boolean, optional): 篩選安全性
 
 **範例:**
 ```bash
-# 搜尋 25.04, 121.55 附近 2 公里內的點
-curl "http://localhost/api/map-points/nearby/25.04/121.55?radius=2"
+# 搜尋 25.04, 121.55 附近 1000 公尺內的點
+curl "http://localhost/api/map-points/nearby/25.04/121.55?radius=1000"
 
-# 搜尋附近的安全點
-curl "http://localhost/api/map-points/nearby/25.04/121.55?is_safe=true"
+# 搜尋附近 200 公尺內的安全點
+curl "http://localhost/api/map-points/nearby/25.04/121.55?radius=200&is_safe=true"
 ```
 
 **回應範例:**
@@ -136,7 +136,8 @@ curl "http://localhost/api/map-points/nearby/25.04/121.55?is_safe=true"
     "latitude": 25.04,
     "longitude": 121.55
   },
-  "radius": 2,
+  "radius": 1000,
+  "unit": "meters",
   "count": 2,
   "data": [
     {
@@ -145,11 +146,16 @@ curl "http://localhost/api/map-points/nearby/25.04/121.55?is_safe=true"
       "latitude": "25.05000000",
       "longitude": "121.55000000",
       "is_safe": false,
-      "distance": 1.111949266445761
+      "distance": 987.5432
     }
   ]
 }
 ```
+
+**注意事項:**
+- 距離單位為公尺（meters）
+- `distance` 欄位表示該點與中心點的距離（公尺）
+- 結果會依據距離由近到遠排序
 
 ### 4. 新增地圖點
 **POST /map-points**
@@ -624,8 +630,8 @@ curl -X POST http://localhost/api/map-points \
     "tags": ["教育", "大學"]
   }'
 
-# 3. 搜尋附近的地圖點
-curl "http://localhost/api/map-points/nearby/25.0173405/121.5397518?radius=3"
+# 3. 搜尋附近的地圖點（500 公尺內）
+curl "http://localhost/api/map-points/nearby/25.0173405/121.5397518?radius=500"
 
 # 4. 回報障礙物
 curl -X POST http://localhost/api/map-points/report-obstacle \

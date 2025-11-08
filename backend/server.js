@@ -92,7 +92,7 @@ app.get('/api/map-points/:id', async (req, res) => {
 app.get('/api/map-points/nearby/:lat/:lng', async (req, res) => {
   try {
     const { lat, lng } = req.params;
-    const { radius = 5, is_safe } = req.query; // radius 預設 5 公里
+    const { radius = 500, is_safe } = req.query; // radius 預設 500 公尺
 
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lng);
@@ -113,11 +113,11 @@ app.get('/api/map-points/nearby/:lat/:lng', async (req, res) => {
 
     const result = await pool.query(query, params);
 
-    // 計算距離並篩選
+    // 計算距離並篩選（使用公尺）
     const nearbyPoints = result.rows
       .map(point => ({
         ...point,
-        distance: calculateDistance(latitude, longitude, parseFloat(point.latitude), parseFloat(point.longitude))
+        distance: calculateDistance(latitude, longitude, parseFloat(point.latitude), parseFloat(point.longitude), 'm')
       }))
       .filter(point => point.distance <= parseFloat(radius))
       .sort((a, b) => a.distance - b.distance);
@@ -126,6 +126,7 @@ app.get('/api/map-points/nearby/:lat/:lng', async (req, res) => {
       success: true,
       center: { latitude, longitude },
       radius: parseFloat(radius),
+      unit: 'meters',
       count: nearbyPoints.length,
       data: nearbyPoints
     });
