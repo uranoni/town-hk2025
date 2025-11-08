@@ -4,6 +4,7 @@ const { Pool } = require('pg');
 const { twd97ToWgs84, wgs84ToTwd97, isValidWgs84, calculateDistance } = require('./utils/coordinateConverter');
 const { geocodeAddress, reverseGeocode } = require('./utils/geocoder');
 const { getAllLandmarks } = require('./utils/taiwanLandmarks');
+const RouteGenerator = require('./routeGenerator');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -279,6 +280,176 @@ app.delete('/api/map-points/:id', async (req, res) => {
     }
 
     res.json({ success: true, message: 'Map point deleted', data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============ 安全路徑生成 API ============
+
+// 生成安全路徑
+app.post('/api/routes/safe-route', async (req, res) => {
+  try {
+    const { start, end, options = {} } = req.body;
+
+    // 驗證必要參數
+    if (!start || !start.latitude || !start.longitude) {
+      return res.status(400).json({
+        success: false,
+        error: 'Start point with latitude and longitude is required'
+      });
+    }
+
+    if (!end || !end.latitude || !end.longitude) {
+      return res.status(400).json({
+        success: false,
+        error: 'End point with latitude and longitude is required'
+      });
+    }
+
+    // 驗證座標
+    if (!isValidWgs84(start.latitude, start.longitude) || !isValidWgs84(end.latitude, end.longitude)) {
+      return res.status(400).json({ success: false, error: 'Invalid coordinates' });
+    }
+
+    // 計算起點和終點組成的矩形範圍
+    const minLat = Math.min(start.latitude, end.latitude);
+    const maxLat = Math.max(start.latitude, end.latitude);
+    const minLng = Math.min(start.longitude, end.longitude);
+    const maxLng = Math.max(start.longitude, end.longitude);
+
+    // 擴大搜尋範圍（增加緩衝區，約 500 公尺）
+    const latBuffer = 0.005; // 約 500 公尺
+    const lngBuffer = 0.005;
+
+    // 查詢矩形範圍內的所有地圖點
+    const query = `
+      SELECT * FROM map_points
+      WHERE latitude BETWEEN $1 AND $2
+        AND longitude BETWEEN $3 AND $4
+    `;
+
+    const result = await pool.query(query, [
+      minLat - latBuffer,
+      maxLat + latBuffer,
+      minLng - lngBuffer,
+      maxLng + lngBuffer
+    ]);
+
+    // 分離安全點和不安全點
+    const safePoints = result.rows.filter(p => p.is_safe);
+    const unsafePoints = result.rows.filter(p => !p.is_safe);
+
+    // 轉換為 [lng, lat] 格式給 HERE API
+    const startCoord = [parseFloat(start.longitude), parseFloat(start.latitude)];
+    const endCoord = [parseFloat(end.longitude), parseFloat(end.latitude)];
+
+    // 轉換安全點和不安全點座標
+    const goodPointsCoords = safePoints.map(p => [parseFloat(p.longitude), parseFloat(p.latitude)]);
+    const badPointsCoords = unsafePoints.map(p => [parseFloat(p.longitude), parseFloat(p.latitude)]);
+
+    // 使用 RouteGenerator 生成路徑
+    const routeGenerator = new RouteGenerator({
+      mapboxToken: process.env.MAPBOXAPIKEY,
+      hereApiKey: process.env.HEREAPIKEY
+    });
+
+    const routeResult = await routeGenerator.calculateRoute({
+      start: startCoord,
+      end: endCoord,
+      goodPoints: goodPointsCoords.slice(0, 5), // 限制安全點數量避免過多途經點
+      badPoints: badPointsCoords,
+      badPointRadius: options.avoidanceRadius || 100
+    });
+
+    if (!routeResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: routeResult.error || 'Failed to calculate route'
+      });
+    }
+
+    // 生成 waypoints
+    const waypoints = [
+      {
+        latitude: start.latitude,
+        longitude: start.longitude,
+        type: 'start',
+        name: '起點'
+      }
+    ];
+
+    // 如果有使用安全點作為途經點，加入到 waypoints
+    if (routeResult.info.goodPointsUsed > 0) {
+      const usedPoints = goodPointsCoords.slice(0, routeResult.info.goodPointsUsed);
+      usedPoints.forEach((coord, idx) => {
+        const matchPoint = safePoints.find(p =>
+          Math.abs(parseFloat(p.longitude) - coord[0]) < 0.0001 &&
+          Math.abs(parseFloat(p.latitude) - coord[1]) < 0.0001
+        );
+        waypoints.push({
+          latitude: coord[1],
+          longitude: coord[0],
+          type: 'safe_point',
+          name: matchPoint ? matchPoint.name : `安全點 ${idx + 1}`,
+          description: matchPoint ? matchPoint.description : null
+        });
+      });
+    }
+
+    waypoints.push({
+      latitude: end.latitude,
+      longitude: end.longitude,
+      type: 'end',
+      name: '終點'
+    });
+
+    // 計算安全等級
+    const threatsCount = unsafePoints.length - (routeResult.info.badPointsAvoided ? unsafePoints.length : 0);
+    let safetyLevel = 'safe';
+    if (!routeResult.info.badPointsAvoided) {
+      safetyLevel = threatsCount > 5 ? 'danger' : threatsCount > 2 ? 'warning' : 'caution';
+    }
+
+    res.json({
+      success: true,
+      route: {
+        start: { latitude: start.latitude, longitude: start.longitude },
+        end: { latitude: end.latitude, longitude: end.longitude },
+        directDistance: Math.round(routeResult.route.distance * 100) / 100,
+        totalDistance: Math.round(routeResult.route.distance * 100) / 100,
+        duration: Math.round(routeResult.route.duration),
+        waypoints: waypoints,
+        geometry: routeResult.route.geometry,
+        safetyLevel: safetyLevel,
+        statistics: {
+          totalSafePoints: safePoints.length,
+          totalUnsafePoints: unsafePoints.length,
+          threatsOnRoute: routeResult.info.badPointsAvoided ? 0 : threatsCount,
+          safepointsOnRoute: routeResult.info.goodPointsUsed
+        },
+        warnings: routeResult.info.badPointsAvoided
+          ? ['路徑成功避開所有不安全點']
+          : [`警告：路徑可能經過 ${threatsCount} 個不安全點`],
+        recommendations: routeResult.info.badPointsAvoided
+          ? ['此路徑相對安全，已避開所有障礙物']
+          : ['建議保持警覺或考慮替代路線']
+      },
+      searchArea: {
+        bounds: {
+          north: maxLat + latBuffer,
+          south: minLat - latBuffer,
+          east: maxLng + lngBuffer,
+          west: minLng - lngBuffer
+        },
+        pointsFound: {
+          safe: safePoints.length,
+          unsafe: unsafePoints.length,
+          total: result.rows.length
+        }
+      },
+      routeInfo: routeResult.info
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
