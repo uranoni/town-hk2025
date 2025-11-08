@@ -26,7 +26,7 @@
                   <span class="value">{{ currentTime }}</span>
                 </div>
               </div>
-              <button class="location-btn" @click="openMapModal">
+              <button class="location-btn " @click="openMapModal">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" />
@@ -39,13 +39,9 @@
           <!-- 狀況下拉菜單 -->
           <div class="status-section">
             <label class="section-label" for="status-select">回報狀況</label>
-            <select
-              id="status-select"
-              v-model="selectedStatus"
-              class="status-select"
-            >
+            <select id="status-select" v-model="selectedStatus" class="status-select">
               <option value="">-- 請選擇 --</option>
-              <option value="normal">正常</option>
+              <!-- <option value="normal">正常</option> -->
               <option value="crowded">擁擠</option>
               <option value="accident">意外</option>
               <option value="blocked">受阻</option>
@@ -57,21 +53,11 @@
           <!-- 備註欄位（可選） -->
           <div class="notes-section">
             <label class="section-label" for="notes">備註（可選）</label>
-            <textarea
-              id="notes"
-              v-model="notes"
-              class="notes-input"
-              placeholder="輸入詳細說明..."
-              rows="3"
-            />
+            <textarea id="notes" v-model="notes" class="notes-input" placeholder="輸入詳細說明..." rows="3" />
           </div>
 
           <!-- 提交按鈕 -->
-          <button
-            class="submit-btn"
-            :disabled="!selectedStatus"
-            @click="submitReport"
-          >
+          <button class="submit-btn" :disabled="!selectedStatus" @click="submitReport">
             確認回報
           </button>
         </div>
@@ -80,13 +66,8 @@
   </Transition>
 
   <!-- 地圖選擇模態框 -->
-  <ReportMapModal
-    :is-open="isMapModalOpen"
-    :initial-lat="selectedLat"
-    :initial-lng="selectedLng"
-    @close="closeMapModal"
-    @confirm="confirmMapLocation"
-  />
+  <ReportMapModal :is-open="isMapModalOpen" :initial-lat="selectedLat" :initial-lng="selectedLng" @close="closeMapModal"
+    @confirm="confirmMapLocation" />
 </template>
 
 <script setup>
@@ -429,6 +410,7 @@ onMounted(() => {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
