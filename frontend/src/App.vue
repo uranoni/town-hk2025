@@ -21,7 +21,7 @@
               ? 'bg-white text-blue-700 shadow'
               : 'text-blue-100 hover:bg-white/[0.12] hover:text-white',
           ]">
-            快速點
+            常用點
           </button>
         </Tab>
       </TabList>
@@ -31,7 +31,6 @@
           'rounded-xl bg-white p-3',
           'ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 h-full',
         ]">
-          <button @click="draw">繪圖（台北車站到台大體育場）</button>
           <GoogleMap ref="locationMap" :api-key="ApiKey" :map-id="MapId" style="width: 100%; height: 100%"
             :center="center" :zoom="17" gesture-handling="greedy" :disable-default-ui="true"
             :libraries="['visualization', 'marker']" @center_changed="mapCenterChanged">
@@ -147,7 +146,10 @@ const reports = ref([]); // 儲存所有回報
 const reportMarkers = ref([]); // 儲存標記引用
 const isHeatmapVisible = ref(false); // 熱圖顯示狀態
 const heatmapData = ref([]); // 熱圖數據
-const homeBases = ref([]); // 儲存所有歸屬點
+const homeBases = ref([
+  { "id": 1762637482915, "name": "台大", "type": "school", "latitude": 25.0216891, "longitude": 121.5351162, "address": "", "notes": "", "emergencyContacts": [] },
+  { "id": 1762637482915, "name": "台北火車站", "type": "work", "latitude": 25.048008, "longitude": 121.51705, "address": "", "notes": "", "emergencyContacts": [] }
+]); // 儲存所有歸屬點
 const waypointMarkers = ref([]); // 儲存 waypoint 標記
 
 // 計算最近 10 筆紀錄
@@ -292,10 +294,10 @@ onMounted(async () => {
   useConnectionMessage('location', null);
 
   // 設置定時器每 10 秒請求一次
-  gpsInterval = setInterval(() => {
-    console.log('定時請求 GPS 位置...');
-    useConnectionMessage('location', null);
-  }, 10000); // 10000 毫秒 = 10 秒
+  // gpsInterval = setInterval(() => {
+  //   console.log('定時請求 GPS 位置...');
+  //   useConnectionMessage('location', null);
+  // }, 10000); // 10000 毫秒 = 10 秒
 });
 
 // 創建 waypoint 標記
@@ -395,18 +397,25 @@ const createWaypointMarker = (waypoint) => {
   }
 };
 
-const draw = () => {
+const draw = (targetLocation = null) => {
+  console.log(center)
   const myHeaders = new Headers();
   myHeaders.append("Content-Type", "application/json");
 
+  // 使用提供的目標位置，或使用預設位置
+  const endLocation = targetLocation || {
+    latitude: 25.0216891,
+    longitude: 121.5351162
+  };
+
   const raw = JSON.stringify({
     "start": {
-      "latitude": 25.048008,
-      "longitude": 121.51705
+      "latitude": center.lat,
+      "longitude": center.lng
     },
     "end": {
-      "latitude": 25.0216891,
-      "longitude": 121.5351162
+      "latitude": endLocation.latitude,
+      "longitude": endLocation.longitude
     }
   });
 
@@ -424,6 +433,14 @@ const draw = () => {
     }
   });
   waypointMarkers.value = [];
+
+  // 清除之前的報告標記
+  reportMarkers.value.forEach(markerInfo => {
+    if (markerInfo && markerInfo.marker) {
+      markerInfo.marker.setMap(null);
+    }
+  });
+  reportMarkers.value = [];
 
   // 清除之前的路徑
   pathCoordinates.value = [];
@@ -456,6 +473,14 @@ const draw = () => {
           const markerData = createWaypointMarker(waypoint);
           if (markerData) {
             waypointMarkers.value.push(markerData);
+          }
+        });
+
+        // 重新創建報告標記
+        reports.value.forEach(report => {
+          const markerData = createMapMarker(report);
+          if (markerData) {
+            reportMarkers.value.push(markerData);
           }
         });
 
@@ -862,101 +887,21 @@ const handleRemoveContact = ({ baseId, contactId }) => {
   }
 };
 
-// 處理啟程 - 開始回家路徑模擬
+// 處理啟程 - 獲取安全路線並顯示
 const handleStartDeparture = (base) => {
   console.log('啟程前往:', base.name, '位置:', base.latitude, base.longitude);
 
-  // 清除現有路徑
-  pathCoordinates.value = [];
-  gpsRecords.value = [];
+  // 切換到「路況資訊」標籤頁
+  selectedTab.value = 0;
 
-  // 設定起始位置為目前中心點
-  simulationLat = center.lat;
-  simulationLng = center.lng;
-
-  // 設定目標位置為歸屬點
-  const targetLat = base.latitude;
-  const targetLng = base.longitude;
-
-  // 如果已有模擬在運行，停止它
-  if (simulationInterval) {
-    clearInterval(simulationInterval);
-    simulationInterval = null;
-  }
-  isSimulating.value = false;
-
-  // 開始模擬路徑 - 向歸屬點方向移動
-  let step = 0;
-  const totalSteps = 50; // 模擬 50 步到達目標
-
-  const simulatePathStep = () => {
-    if (step >= totalSteps) {
-      // 到達目標
-      center.lat = targetLat;
-      center.lng = targetLng;
-
-      if (locationMap.value && locationMap.value.map) {
-        locationMap.value.map.panTo({
-          lat: targetLat,
-          lng: targetLng
-        });
-      }
-
-      isSimulating.value = false;
-      console.log('已到達歸屬點:', base.name);
-
-      // 發送位置給緊急聯絡人（未來實現）
-      if (base.emergencyContacts && base.emergencyContacts.length > 0) {
-        console.log('發送位置給緊急聯絡人:', base.emergencyContacts.map(c => c.name).join(', '));
-        // TODO: 實現發送位置通知功能
-      }
-
-      return;
-    }
-
-    // 計算下一個位置
-    const newLat = simulationLat + (targetLat - simulationLat) * (1 / totalSteps);
-    const newLng = simulationLng + (targetLng - simulationLng) * (1 / totalSteps);
-
-    simulationLat = newLat;
-    simulationLng = newLng;
-
-    // 更新中心點
-    center.lat = newLat;
-    center.lng = newLng;
-
-    // 移動地圖
-    if (locationMap.value && locationMap.value.map) {
-      locationMap.value.map.panTo({
-        lat: newLat,
-        lng: newLng
-      });
-    }
-
-    // 添加到路徑座標
-    pathCoordinates.value.push({ lat: newLat, lng: newLng });
-
-    // 添加到 GPS 紀錄
-    const now = new Date();
-    const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-    gpsRecords.value.push({
-      index: gpsRecords.value.length + 1,
-      lat: newLat.toFixed(7),
-      lng: newLng.toFixed(7),
-      time: timeString
-    });
-
-    step++;
-
-    // 繼續下一步
-    simulationInterval = setTimeout(simulatePathStep, 500);
-  };
-
-  isSimulating.value = true;
-  simulatePathStep();
+  // 調用 draw 方法以獲取安全路線並顯示 waypoints，傳遞目標位置
+  draw({
+    latitude: base.latitude,
+    longitude: base.longitude
+  });
 
   // 顯示通知
-  alert(`開始前往 ${base.name}\n目標位置: ${base.latitude.toFixed(6)}, ${base.longitude.toFixed(6)}\n估計時間: ${totalSteps * 0.5 / 60} 分鐘`);
+  alert(`開始前往 ${base.name}\n目標位置: ${base.latitude.toFixed(6)}, ${base.longitude.toFixed(6)}`);
 };
 
 const mapCenterChanged = useDebounceFn(async () => {
