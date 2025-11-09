@@ -27,7 +27,7 @@
       </TabList>
 
       <TabPanels class="mt-2" style="height: calc(100% - 72px);">
-        <TabPanel :class="[
+        <TabPanel :unmount="false" :class="[
           'rounded-xl bg-white p-3',
           'ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 h-full',
         ]">
@@ -75,7 +75,7 @@
           <ReportSheet :is-open="isReportSheetOpen" :latitude="center.lat" :longitude="center.lng"
             @close="closeReportSheet" @submit="handleReportSubmit" />
         </TabPanel>
-        <TabPanel :class="[
+        <TabPanel :unmount="false" :class="[
           'rounded-xl bg-white p-0',
           'ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 h-full',
         ]">
@@ -125,7 +125,7 @@ const flightPath = {
 const selectedTab = ref(0)
 
 function changeTab(index) {
-  selectedTab.value = index
+  selectedTab.value = index;
 }
 
 const center = reactive({ lat: 25.0376146, lng: 121.563844 });
@@ -260,6 +260,66 @@ onMounted(async () => {
         // 添加到 reports 列表
         reports.value.push(...obstacleReports);
 
+        // 開發環境：添加假的 bad point 數據進行測試
+        if (import.meta.env.DEV) {
+          console.log('🔧 開發模式：添加假的 bad point 數據');
+          const fakeBadPoints = [
+            {
+              id: 'fake-1',
+              status: 'pothole',
+              latitude: 25.0380,
+              longitude: 121.5640,
+              notes: '測試坑洞 - 開發環境假資料',
+              address: '台北市中正區',
+              timestamp: new Date().toISOString(),
+              position: { lat: 25.0380, lng: 121.5640 }
+            },
+            {
+              id: 'fake-2',
+              status: 'construction',
+              latitude: 25.0370,
+              longitude: 121.5645,
+              notes: '測試施工區 - 開發環境假資料',
+              address: '台北市中正區',
+              timestamp: new Date().toISOString(),
+              position: { lat: 25.0370, lng: 121.5645 }
+            },
+            {
+              id: 'fake-3',
+              status: 'flooding',
+              latitude: 25.0385,
+              longitude: 121.5635,
+              notes: '測試淹水區 - 開發環境假資料',
+              address: '台北市中正區',
+              timestamp: new Date().toISOString(),
+              position: { lat: 25.0385, lng: 121.5635 }
+            },
+            {
+              id: 'fake-4',
+              status: 'accident',
+              latitude: 25.0375,
+              longitude: 121.5650,
+              notes: '測試事故 - 開發環境假資料',
+              address: '台北市中正區',
+              timestamp: new Date().toISOString(),
+              position: { lat: 25.0375, lng: 121.5650 }
+            },
+            {
+              id: 'fake-5',
+              status: 'other',
+              latitude: 25.0365,
+              longitude: 121.5630,
+              notes: '測試其他障礙 - 開發環境假資料',
+              address: '台北市中正區',
+              timestamp: new Date().toISOString(),
+              position: { lat: 25.0365, lng: 121.5630 }
+            }
+          ];
+
+          reports.value.push(...fakeBadPoints);
+          console.log('✅ 已添加', fakeBadPoints.length, '個假的 bad points');
+        }
+
         // 等待地圖準備好後創建標記
         let attempts = 0;
         const maxAttempts = 50;
@@ -268,14 +328,15 @@ onMounted(async () => {
           attempts++;
 
           if (locationMap.value?.map && window.google) {
-            console.log('Map is ready, creating markers for', obstacleReports.length, 'obstacles');
-            obstacleReports.forEach((report) => {
+            console.log('Map is ready, creating markers for', reports.value.length, 'reports (including fake data in dev mode)');
+            // 為所有報告創建標記（包含真實數據和開發環境的假數據）
+            reports.value.forEach((report) => {
               const markerData = createMapMarker(report);
               if (markerData) {
                 reportMarkers.value.push(markerData);
               }
             });
-            console.log('Total obstacles loaded:', obstacleReports.length);
+            console.log('Total markers created:', reportMarkers.value.length);
           } else if (attempts < maxAttempts) {
             // 如果地圖還沒準備好，等待 100ms 後重試
             console.log(`Waiting for map to be ready... (attempt ${attempts}/${maxAttempts})`);
@@ -397,8 +458,15 @@ const createWaypointMarker = (waypoint) => {
   }
 };
 
-const draw = (targetLocation = null) => {
-  console.log(center)
+const draw = (startLat, startLng, endLat, endLng) => {
+  // 如果沒有提供參數，使用預設值（台北車站到台大體育場）
+  const actualStartLat = startLat !== undefined ? startLat : 25.048008;
+  const actualStartLng = startLng !== undefined ? startLng : 121.51705;
+  const actualEndLat = endLat !== undefined ? endLat : 25.0216891;
+  const actualEndLng = endLng !== undefined ? endLng : 121.5351162;
+
+  console.log('Drawing route from', actualStartLat, actualStartLng, 'to', actualEndLat, actualEndLng);
+
   const myHeaders = new Headers();
   myHeaders.append("Content-Type", "application/json");
 
@@ -410,12 +478,12 @@ const draw = (targetLocation = null) => {
 
   const raw = JSON.stringify({
     "start": {
-      "latitude": center.lat,
-      "longitude": center.lng
+      "latitude": actualStartLat,
+      "longitude": actualStartLng
     },
     "end": {
-      "latitude": endLocation.latitude,
-      "longitude": endLocation.longitude
+      "latitude": actualEndLat,
+      "longitude": actualEndLng
     }
   });
 
@@ -894,6 +962,7 @@ const handleStartDeparture = (base) => {
   // 切換到「路況資訊」標籤頁
   selectedTab.value = 0;
 
+<<<<<<< HEAD
   // 調用 draw 方法以獲取安全路線並顯示 waypoints，傳遞目標位置
   draw({
     latitude: base.latitude,
@@ -902,6 +971,25 @@ const handleStartDeparture = (base) => {
 
   // 顯示通知
   alert(`開始前往 ${base.name}\n目標位置: ${base.latitude.toFixed(6)}, ${base.longitude.toFixed(6)}`);
+=======
+  // 設定起始位置為目前中心點
+  simulationLat = center.lat;
+  simulationLng = center.lng;
+
+  // 設定目標位置為歸屬點
+  const targetLat = base.latitude;
+  const targetLng = base.longitude;
+
+  // 調用安全路徑規劃 API
+  console.log('規劃安全路徑：從', center.lat, center.lng, '到', targetLat, targetLng);
+  draw(center.lat, center.lng, targetLat, targetLng);
+
+  // 切換到路況資訊標籤以顯示路徑
+  selectedTab.value = 0;
+
+  // 顯示通知
+  alert(`規劃前往 ${base.name} 的安全路徑\n起點: ${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}\n終點: ${base.latitude.toFixed(6)}, ${base.longitude.toFixed(6)}`);
+>>>>>>> 824b487 (fix bug)
 };
 
 const mapCenterChanged = useDebounceFn(async () => {
