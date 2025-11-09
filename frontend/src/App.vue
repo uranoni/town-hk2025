@@ -962,16 +962,6 @@ const handleStartDeparture = (base) => {
   // 切換到「路況資訊」標籤頁
   selectedTab.value = 0;
 
-<<<<<<< HEAD
-  // 調用 draw 方法以獲取安全路線並顯示 waypoints，傳遞目標位置
-  draw({
-    latitude: base.latitude,
-    longitude: base.longitude
-  });
-
-  // 顯示通知
-  alert(`開始前往 ${base.name}\n目標位置: ${base.latitude.toFixed(6)}, ${base.longitude.toFixed(6)}`);
-=======
   // 設定起始位置為目前中心點
   simulationLat = center.lat;
   simulationLng = center.lng;
@@ -989,7 +979,6 @@ const handleStartDeparture = (base) => {
 
   // 顯示通知
   alert(`規劃前往 ${base.name} 的安全路徑\n起點: ${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}\n終點: ${base.latitude.toFixed(6)}, ${base.longitude.toFixed(6)}`);
->>>>>>> 824b487 (fix bug)
 };
 
 const mapCenterChanged = useDebounceFn(async () => {
