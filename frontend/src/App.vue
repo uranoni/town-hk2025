@@ -953,26 +953,24 @@ const handleRemoveContact = ({ baseId, contactId }) => {
 const handleStartDeparture = (base) => {
   console.log('啟程前往:', base.name, '位置:', base.latitude, base.longitude);
 
-  // 切換到「路況資訊」標籤頁
-  selectedTab.value = 0;
-
-  // 設定起始位置為目前中心點
-  simulationLat = center.lat;
-  simulationLng = center.lng;
+  // 立即保存當前位置作為起點（在任何可能改變 center 的操作之前）
+  const startLat = center.lat;
+  const startLng = center.lng;
 
   // 設定目標位置為歸屬點
   const targetLat = base.latitude;
   const targetLng = base.longitude;
 
-  // 調用安全路徑規劃 API
-  console.log('規劃安全路徑：從', center.lat, center.lng, '到', targetLat, targetLng);
-  draw(center.lat, center.lng, targetLat, targetLng);
+  console.log('規劃安全路徑：從', startLat, startLng, '到', targetLat, targetLng);
 
-  // 切換到路況資訊標籤以顯示路徑
+  // 切換到「路況資訊」標籤頁
   selectedTab.value = 0;
 
+  // 調用安全路徑規劃 API（使用保存的起點座標）
+  draw(startLat, startLng, targetLat, targetLng);
+
   // 顯示通知
-  alert(`規劃前往 ${base.name} 的安全路徑\n起點: ${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}\n終點: ${base.latitude.toFixed(6)}, ${base.longitude.toFixed(6)}`);
+  alert(`規劃前往 ${base.name} 的安全路徑\n起點: ${startLat.toFixed(6)}, ${startLng.toFixed(6)}\n終點: ${base.latitude.toFixed(6)}, ${base.longitude.toFixed(6)}`);
 };
 
 const mapCenterChanged = useDebounceFn(async () => {
