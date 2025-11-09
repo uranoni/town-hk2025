@@ -459,13 +459,15 @@ const createWaypointMarker = (waypoint) => {
 };
 
 const draw = (startLat, startLng, endLat, endLng) => {
+  console.log('🎨 draw() 被調用，參數:', { startLat, startLng, endLat, endLng });
+
   // 如果沒有提供參數，使用預設值（台北車站到台大體育場）
   const actualStartLat = startLat !== undefined ? startLat : 25.048008;
   const actualStartLng = startLng !== undefined ? startLng : 121.51705;
   const actualEndLat = endLat !== undefined ? endLat : 25.0216891;
   const actualEndLng = endLng !== undefined ? endLng : 121.5351162;
 
-  console.log('Drawing route from', actualStartLat, actualStartLng, 'to', actualEndLat, actualEndLng);
+  console.log('🗺️ 最終使用的座標 - 起點:', actualStartLat, actualStartLng, '終點:', actualEndLat, actualEndLng);
 
   const myHeaders = new Headers();
   myHeaders.append("Content-Type", "application/json");
@@ -480,6 +482,8 @@ const draw = (startLat, startLng, endLat, endLng) => {
       "longitude": actualEndLng
     }
   });
+
+  console.log('📤 發送給 API 的請求:', raw);
 
   const requestOptions = {
     method: "POST",
@@ -510,9 +514,10 @@ const draw = (startLat, startLng, endLat, endLng) => {
   fetch("/api/routes/safe-route", requestOptions)
     .then((response) => response.json())
     .then((result) => {
-      console.log('Route result:', result)
+      console.log('📥 API 返回的完整結果:', result);
       const { route } = result;
-      const { waypoints } = route
+      const { waypoints } = route;
+      console.log('🚩 API 返回的 waypoints:', waypoints)
 
       // 繪製路線
       if (route) {
@@ -951,7 +956,8 @@ const handleRemoveContact = ({ baseId, contactId }) => {
 
 // 處理啟程 - 獲取安全路線並顯示
 const handleStartDeparture = (base) => {
-  console.log('啟程前往:', base.name, '位置:', base.latitude, base.longitude);
+  console.log('🚀 啟程前往:', base.name, '位置:', base.latitude, base.longitude);
+  console.log('📍 當前 center 值:', center.lat, center.lng);
 
   // 立即保存當前位置作為起點（在任何可能改變 center 的操作之前）
   const startLat = center.lat;
@@ -961,12 +967,15 @@ const handleStartDeparture = (base) => {
   const targetLat = base.latitude;
   const targetLng = base.longitude;
 
-  console.log('規劃安全路徑：從', startLat, startLng, '到', targetLat, targetLng);
+  console.log('✅ 已保存起點座標:', startLat, startLng);
+  console.log('🎯 目標座標:', targetLat, targetLng);
 
   // 切換到「路況資訊」標籤頁
   selectedTab.value = 0;
+  console.log('📑 已切換到路況資訊標籤');
 
   // 調用安全路徑規劃 API（使用保存的起點座標）
+  console.log('🛣️ 即將調用 draw() - 起點:', startLat, startLng, '終點:', targetLat, targetLng);
   draw(startLat, startLng, targetLat, targetLng);
 
   // 顯示通知
