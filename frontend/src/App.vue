@@ -470,12 +470,6 @@ const draw = (startLat, startLng, endLat, endLng) => {
   const myHeaders = new Headers();
   myHeaders.append("Content-Type", "application/json");
 
-  // 使用提供的目標位置，或使用預設位置
-  const endLocation = targetLocation || {
-    latitude: 25.0216891,
-    longitude: 121.5351162
-  };
-
   const raw = JSON.stringify({
     "start": {
       "latitude": actualStartLat,
