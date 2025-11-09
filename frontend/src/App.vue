@@ -131,6 +131,9 @@ function changeTab(index) {
 const center = reactive({ lat: 25.0376146, lng: 121.563844 });
 const markerOptions = ref({ position: { lat: 25.0376146, lng: 121.563844 } })
 const locationMap = ref(null);
+
+// 用戶的真實位置（不受地圖視圖變化影響）
+const userLocation = reactive({ lat: 25.0376146, lng: 121.563844 });
 const heatmapRef = ref(null);
 const isPanning = ref(false);
 const pathCoordinates = ref([]); // 儲存路徑座標
@@ -187,6 +190,10 @@ const handleLocation = async (event) => {
     // 更新地圖中心點
     center.lat = lat;
     center.lng = lng;
+
+    // 同時更新用戶真實位置
+    userLocation.lat = lat;
+    userLocation.lng = lng;
 
     // 手動移動地圖到新位置
     if (locationMap.value && locationMap.value.map) {
@@ -958,10 +965,11 @@ const handleRemoveContact = ({ baseId, contactId }) => {
 const handleStartDeparture = (base) => {
   console.log('🚀 啟程前往:', base.name, '位置:', base.latitude, base.longitude);
   console.log('📍 當前 center 值:', center.lat, center.lng);
+  console.log('👤 用戶真實位置:', userLocation.lat, userLocation.lng);
 
-  // 立即保存當前位置作為起點（在任何可能改變 center 的操作之前）
-  const startLat = center.lat;
-  const startLng = center.lng;
+  // 使用用戶真實位置作為起點（不受地圖視圖變化影響）
+  const startLat = userLocation.lat;
+  const startLng = userLocation.lng;
 
   // 設定目標位置為歸屬點
   const targetLat = base.latitude;
